@@ -8,10 +8,13 @@ import AnalyticsChart from './components/AnalyticsChart';
 import CityDetailModal from './components/CityDetailModal';
 import CacheDebugModal from './components/CacheDebugModal';
 import AuthGuideModal from './components/AuthGuideModal';
+import LoginPage from './components/LoginPage';
 import { useWeather } from './context/WeatherContext';
-import { AlertTriangle, CloudSun, Sparkles, RefreshCw } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
+import { AlertTriangle, CloudSun, RefreshCw } from 'lucide-react';
 
 export default function App() {
+  const { isAuthenticated } = useAuth();
   const { 
     filteredCities, 
     loading, 
@@ -20,6 +23,11 @@ export default function App() {
     fetchWeather, 
     lastUpdated 
   } = useWeather();
+
+  // Guard: Only authenticated users can access Comfort Index dashboard
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="app-container">

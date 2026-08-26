@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
 import { WeatherProvider } from './context/WeatherContext';
+import { AuthProvider } from './context/AuthContext';
 import { Auth0Provider } from '@auth0/auth0-react';
 import './styles/index.css';
 
@@ -12,7 +13,6 @@ const auth0Audience = import.meta.env.VITE_AUTH0_AUDIENCE || 'https://weather-an
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-// Wrap with Auth0 if client ID is provided, otherwise render with local Auth Context wrapper
 const AppWrapper = (
   <React.StrictMode>
     {auth0ClientId && auth0ClientId !== 'dummy-client-id' ? (
@@ -24,18 +24,22 @@ const AppWrapper = (
           audience: auth0Audience
         }}
       >
+        <AuthProvider>
+          <ThemeProvider>
+            <WeatherProvider>
+              <App />
+            </WeatherProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </Auth0Provider>
+    ) : (
+      <AuthProvider>
         <ThemeProvider>
           <WeatherProvider>
             <App />
           </WeatherProvider>
         </ThemeProvider>
-      </Auth0Provider>
-    ) : (
-      <ThemeProvider>
-        <WeatherProvider>
-          <App />
-        </WeatherProvider>
-      </ThemeProvider>
+      </AuthProvider>
     )}
   </React.StrictMode>
 );
