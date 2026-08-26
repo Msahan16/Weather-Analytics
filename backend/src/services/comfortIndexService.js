@@ -104,7 +104,7 @@ class ComfortIndexService {
    */
   calculateScore(weather) {
     // Extract parameters
-    const tempC = weather.tempC ?? (weather.main?.temp ? weather.main.temp - 273.15 : 20);
+    const tempC = weather.tempC ?? weather.temperature?.celsius ?? (weather.main?.temp ? weather.main.temp - 273.15 : 20);
     const humidity = weather.humidity ?? weather.main?.humidity ?? 50;
     const windSpeed = weather.windSpeed ?? weather.wind?.speed ?? 2.5;
     const cloudiness = weather.cloudiness ?? weather.clouds?.all ?? 30;
