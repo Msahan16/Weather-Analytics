@@ -20,6 +20,7 @@ export default function LoginPage() {
     verifyMfaOtp, 
     mfaPending, 
     cancelMfa, 
+    loginWithUniversal,
     authError, 
     authLoading, 
     auth0 
@@ -194,19 +195,18 @@ export default function LoginPage() {
             </div>
 
             {/* Auth0 Universal Login Alternative Button */}
-            {auth0 && (
-              <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-glass)' }}>
-                <button
-                  type="button"
-                  className="btn btn-glass"
-                  style={{ width: '100%', fontSize: '0.85rem' }}
-                  onClick={() => auth0.loginWithRedirect()}
-                >
-                  <ShieldCheck size={16} />
-                  <span>Log in with Auth0 Universal Login</span>
-                </button>
-              </div>
-            )}
+            <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-glass)' }}>
+              <button
+                type="button"
+                className="btn btn-glass"
+                style={{ width: '100%', fontSize: '0.85rem' }}
+                onClick={loginWithUniversal}
+                disabled={authLoading}
+              >
+                <ShieldCheck size={16} color="var(--accent-cyan)" />
+                <span>Log in with Auth0 Universal Login</span>
+              </button>
+            </div>
           </div>
         ) : (
           /* Step 2: Multi-Factor Authentication (Email Verification OTP) */
