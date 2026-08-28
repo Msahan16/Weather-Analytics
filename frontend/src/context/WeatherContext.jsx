@@ -9,6 +9,8 @@ export const WeatherProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cacheStatus, setCacheStatus] = useState('MISS');
+  const [dbStatus, setDbStatus] = useState('DISCONNECTED');
+  const [dbHealth, setDbHealth] = useState(null);
   const [responseTimeMs, setResponseTimeMs] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tempUnit, setTempUnit] = useState('C'); // 'C' or 'F'
@@ -25,6 +27,24 @@ export const WeatherProvider = ({ children }) => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [cacheStats, setCacheStats] = useState(null);
 
+  // Fetch DB Health & Stats
+  const fetchDbStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/db/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbHealth(data.data);
+        if (data.data?.connected) {
+          setDbStatus('CONNECTED');
+        } else {
+          setDbStatus('DISCONNECTED');
+        }
+      }
+    } catch (err) {
+      console.warn('[WeatherContext] Error fetching DB status:', err);
+    }
+  }, []);
+
   // Fetch Weather Data
   const fetchWeather = useCallback(async (forceRefresh = false) => {
     setLoading(true);
@@ -39,6 +59,7 @@ export const WeatherProvider = ({ children }) => {
       if (data.success) {
         setWeatherData(data.data || []);
         setCacheStatus(data.cacheStatus || 'MISS');
+        if (data.dbStatus) setDbStatus(data.dbStatus);
         setResponseTimeMs(data.responseTimeMs || 0);
         setLastUpdated(data.generatedAt ? new Date(data.generatedAt).toLocaleTimeString() : new Date().toLocaleTimeString());
       }
@@ -69,19 +90,21 @@ export const WeatherProvider = ({ children }) => {
       const res = await fetch(`${API_BASE}/cache/clear`, { method: 'POST' });
       if (res.ok) {
         await fetchCacheStats();
+        await fetchDbStatus();
         // Immediately fetch refreshed data to show cache MISS transition
         await fetchWeather(true);
       }
     } catch (err) {
       console.error('[WeatherContext] Error clearing cache:', err);
     }
-  }, [fetchCacheStats, fetchWeather]);
+  }, [fetchCacheStats, fetchDbStatus, fetchWeather]);
 
   // Initial Load
   useEffect(() => {
     fetchWeather();
     fetchCacheStats();
-  }, [fetchWeather, fetchCacheStats]);
+    fetchDbStatus();
+  }, [fetchWeather, fetchCacheStats, fetchDbStatus]);
 
   // Toggle Temp Unit
   const toggleTempUnit = () => {
@@ -140,6 +163,9 @@ export const WeatherProvider = ({ children }) => {
         loading,
         error,
         cacheStatus,
+        dbStatus,
+        dbHealth,
+        fetchDbStatus,
         responseTimeMs,
         lastUpdated,
         tempUnit,

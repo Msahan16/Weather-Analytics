@@ -6,6 +6,7 @@ import {
   RefreshCw, 
   ShieldCheck, 
   Database, 
+  Server,
   LogOut, 
   UserCheck, 
   KeyRound 
@@ -18,6 +19,8 @@ export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const { 
     cacheStatus, 
+    dbStatus,
+    dbHealth,
     responseTimeMs, 
     fetchWeather, 
     loading, 
@@ -26,6 +29,8 @@ export default function Navbar() {
     setCacheModalOpen 
   } = useWeather();
   const { user, logout } = useAuth();
+
+  const isDbConnected = dbStatus === 'CONNECTED';
 
   return (
     <header className="navbar glass-panel">
@@ -40,11 +45,25 @@ export default function Navbar() {
       </div>
 
       <div className="nav-actions">
+        {/* MySQL Database Badge */}
+        <button 
+          className={`cache-badge ${isDbConnected ? '' : 'miss'}`}
+          onClick={() => setCacheModalOpen(true)}
+          title={`MySQL XAMPP Database: ${isDbConnected ? 'Connected (Weather-AnalyticsDB)' : 'Offline/Connecting'}`}
+          style={{ cursor: 'pointer' }}
+        >
+          <Server size={13} style={{ color: isDbConnected ? 'var(--accent-emerald)' : '#f43f5e' }} />
+          <span>MySQL: {isDbConnected ? 'Active' : 'Offline'}</span>
+          {isDbConnected && dbHealth?.totalCities && (
+            <span style={{ opacity: 0.8, fontSize: '0.68rem' }}>({dbHealth.totalCities} cities)</span>
+          )}
+        </button>
+
         {/* Cache Telemetry Badge */}
         <button 
           className={`cache-badge ${cacheStatus === 'MISS' ? 'miss' : ''}`}
           onClick={() => setCacheModalOpen(true)}
-          title="Click to view Server-Side Cache Telemetry"
+          title="Click to view Server-Side Cache & DB Telemetry"
         >
           <Database size={13} />
           <span>Cache {cacheStatus}</span>
@@ -64,7 +83,7 @@ export default function Navbar() {
         <button 
           className={`btn btn-glass btn-icon`}
           onClick={() => fetchWeather(true)}
-          title="Force Refresh Live Data"
+          title="Force Refresh Live Data & Sync to MySQL"
         >
           <RefreshCw size={17} className={loading ? 'spin-anim' : ''} />
         </button>

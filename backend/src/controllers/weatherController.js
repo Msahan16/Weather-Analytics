@@ -1,5 +1,6 @@
 const weatherService = require('../services/weatherService');
 const cacheService = require('../services/cacheService');
+const db = require('../config/db');
 
 /**
  * Weather & Analytics Controller
@@ -19,11 +20,13 @@ class WeatherController {
 
       res.setHeader('X-Cache-Status', result.cacheStatus);
       res.setHeader('X-Response-Time-Ms', responseTimeMs);
+      res.setHeader('X-DB-Status', db.isConnected ? 'CONNECTED' : 'DISCONNECTED');
 
       return res.status(200).json({
         success: true,
         source: result.source,
         cacheStatus: result.cacheStatus,
+        dbStatus: db.isConnected ? 'CONNECTED' : 'DISCONNECTED',
         responseTimeMs,
         generatedAt: result.generatedAt,
         totalCities: result.count,
@@ -62,6 +65,39 @@ class WeatherController {
   }
 
   /**
+   * Get historical records for a city from DB
+   * GET /api/weather/city/:id/history
+   */
+  async getCityHistory(req, res, next) {
+    try {
+      const { id } = req.params;
+      const limit = req.query.limit || 20;
+      const history = await weatherService.getCityHistory(id, limit);
+
+      return res.status(200).json({
+        success: true,
+        cityCode: id,
+        count: history.length,
+        data: history
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Get MySQL Database Status & Telemetry
+   * GET /api/weather/db/status
+   */
+  async getDbStatus(req, res) {
+    const health = await db.checkDbHealth();
+    return res.status(200).json({
+      success: true,
+      data: health
+    });
+  }
+
+  /**
    * Get Cache Telemetry & Debug Statistics
    * GET /api/weather/cache/stats
    */
@@ -90,10 +126,12 @@ class WeatherController {
    * GET /api/weather/health
    */
   async healthCheck(req, res) {
+    const dbHealth = await db.checkDbHealth();
     return res.status(200).json({
       status: 'healthy',
       uptimeSec: Math.round(process.uptime()),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      database: dbHealth
     });
   }
 }

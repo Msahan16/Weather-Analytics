@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const config = require('./config');
+const db = require('./config/db');
 const weatherRoutes = require('./routes/weatherRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -12,7 +13,7 @@ app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Cache-Status', 'X-Response-Time-Ms', 'X-Auth-Mode']
+  exposedHeaders: ['X-Cache-Status', 'X-Response-Time-Ms', 'X-Auth-Mode', 'X-DB-Status']
 }));
 
 app.use(express.json());
@@ -30,9 +31,17 @@ app.get('/', (req, res) => {
   res.json({
     name: 'Weather Analytics API (Fidenz Assignment)',
     version: '1.0.0',
+    database: {
+      name: config.db.database,
+      host: config.db.host,
+      port: config.db.port,
+      connected: db.isConnected
+    },
     endpoints: {
       allWeather: '/api/weather/all',
       singleCity: '/api/weather/city/:id',
+      cityHistory: '/api/weather/city/:id/history',
+      dbStatus: '/api/weather/db/status',
       cacheStats: '/api/weather/cache/stats',
       cacheClear: '/api/weather/cache/clear (POST)',
       health: '/api/weather/health'
@@ -58,14 +67,22 @@ app.use(errorHandler);
 
 // Start server if not running in Jest test runner
 if (process.env.NODE_ENV !== 'test') {
-  const server = app.listen(config.port, () => {
+  const server = app.listen(config.port, async () => {
     console.log('====================================================');
     console.log(`🌤️  Weather Analytics API Server running on port ${config.port}`);
     console.log(`📡 Environment: ${config.nodeEnv}`);
+    console.log(`🗄️  Database: ${config.db.database} on ${config.db.host}:${config.db.port}`);
     console.log(`🔒 Auth Required: ${config.authRequired}`);
     console.log(`⏱️  Cache TTL: ${config.cacheTtlRaw}s (Raw) / ${config.cacheTtlProcessed}s (Processed)`);
     console.log(`🚀 Ready: http://localhost:${config.port}`);
     console.log('====================================================');
+
+    // Auto-initialize MySQL tables and seed default cities
+    try {
+      await db.initDatabase();
+    } catch (dbErr) {
+      console.warn(`[DB] Notice: Auto-init deferred: ${dbErr.message}`);
+    }
   });
 
   process.on('SIGTERM', () => {

@@ -1,26 +1,53 @@
 const fs = require('fs');
 const axios = require('axios');
 const config = require('../config');
+const db = require('../config/db');
 const cacheService = require('./cacheService');
 const comfortIndexService = require('./comfortIndexService');
 
 class WeatherService {
   constructor() {
-    this.cities = this.loadCities();
+    this.fallbackCities = this.loadCitiesFromFile();
   }
 
   /**
-   * Load city list from cities.json
+   * Load city list from local cities.json file as fallback
    */
-  loadCities() {
+  loadCitiesFromFile() {
     try {
       const data = fs.readFileSync(config.citiesFilePath, 'utf8');
       const parsed = JSON.parse(data);
       return parsed.List || [];
     } catch (err) {
-      console.error('[WeatherService] Error loading cities.json:', err.message);
+      console.error('[WeatherService] Error loading cities.json fallback:', err.message);
       return [];
     }
+  }
+
+  /**
+   * Load cities dynamically from MySQL DB with fallback to JSON
+   */
+  async loadCities() {
+    try {
+      if (db.isConnected) {
+        const [rows] = await db.query(
+          'SELECT city_code AS CityCode, city_name AS CityName, country AS Country, temp AS Temp, status AS Status FROM cities WHERE is_active = 1'
+        );
+        if (rows && rows.length > 0) {
+          return rows.map(r => ({
+            CityCode: String(r.CityCode),
+            CityName: r.CityName,
+            Country: r.Country || 'GLOBAL',
+            Temp: String(r.Temp),
+            Status: r.Status
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn(`[WeatherService] Could not fetch cities from MySQL: ${err.message}. Using JSON fallback.`);
+    }
+
+    return this.loadCitiesFromFile();
   }
 
   /**
@@ -42,7 +69,7 @@ class WeatherService {
     return {
       cityCode: String(raw.id || fallbackCityMeta.CityCode),
       cityName: raw.name || fallbackCityMeta.CityName,
-      country: raw.sys?.country || 'GLOBAL',
+      country: raw.sys?.country || fallbackCityMeta.Country || 'GLOBAL',
       coordinates: {
         lon: raw.coord?.lon || 0,
         lat: raw.coord?.lat || 0
@@ -132,7 +159,7 @@ class WeatherService {
       sys: {
         type: 1,
         id: 1000,
-        country: "GL",
+        country: cityMeta.Country || "GLOBAL",
         sunrise: Math.floor(Date.now() / 1000) - 20000,
         sunset: Math.floor(Date.now() / 1000) + 20000
       },
@@ -175,6 +202,51 @@ class WeatherService {
   }
 
   /**
+   * Persist ranked weather analytics snapshot into MySQL weather_records table
+   */
+  async persistWeatherRecordsToDb(rankedCities) {
+    try {
+      if (!db.isConnected) return;
+
+      for (const city of rankedCities) {
+        await db.query(
+          `INSERT INTO weather_records 
+           (city_code, city_name, country, temp_c, temp_f, feels_like_c, feels_like_f, temp_min_c, temp_max_c,
+            weather_main, weather_description, weather_icon, humidity, pressure, wind_speed, wind_deg,
+            cloudiness, visibility, comfort_score, comfort_category, comfort_breakdown, source, recorded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [
+            city.cityCode,
+            city.cityName,
+            city.country || 'GLOBAL',
+            city.temperature.celsius,
+            city.temperature.fahrenheit,
+            city.temperature.feelsLikeC,
+            city.temperature.feelsLikeF,
+            city.temperature.tempMinC,
+            city.temperature.tempMaxC,
+            city.weather.main,
+            city.weather.description,
+            city.weather.icon,
+            city.humidity,
+            city.pressure,
+            city.windSpeed,
+            city.windDeg || 0,
+            city.cloudiness,
+            city.visibility || 10000,
+            city.comfortScore,
+            city.comfortCategory,
+            JSON.stringify(city.comfortBreakdown || {}),
+            'live'
+          ]
+        );
+      }
+    } catch (err) {
+      console.warn(`[WeatherService] Non-blocking notice: Could not save weather records to MySQL: ${err.message}`);
+    }
+  }
+
+  /**
    * Fetch and calculate ranked weather analytics for all cities
    */
   async getAllRankedWeather(forceRefresh = false) {
@@ -192,9 +264,9 @@ class WeatherService {
       }
     }
 
-    const citiesMeta = this.loadCities();
+    const citiesMeta = await this.loadCities();
     if (!citiesMeta.length) {
-      throw new Error('No cities configured in cities.json');
+      throw new Error('No cities configured in database or cities.json');
     }
 
     // Concurrently fetch weather data for all cities
@@ -221,6 +293,11 @@ class WeatherService {
     // Store in processed cache (5 min TTL)
     cacheService.setProcessedAnalytics('all_ranked_cities', payload);
 
+    // Persist records into MySQL database asynchronously (non-blocking)
+    this.persistWeatherRecordsToDb(rankedCities).catch(err => {
+      console.warn('[WeatherService] Async DB record persistence warning:', err.message);
+    });
+
     return {
       source: 'live-processed',
       cacheStatus: 'MISS',
@@ -240,6 +317,28 @@ class WeatherService {
       return null;
     }
     return city;
+  }
+
+  /**
+   * Get historical records for a city from MySQL
+   */
+  async getCityHistory(cityCode, limit = 20) {
+    try {
+      if (db.isConnected) {
+        const [rows] = await db.query(
+          `SELECT id, city_code, city_name, temp_c, humidity, wind_speed, pressure, cloudiness, comfort_score, comfort_category, recorded_at
+           FROM weather_records
+           WHERE city_code = ?
+           ORDER BY recorded_at DESC
+           LIMIT ?`,
+          [String(cityCode), parseInt(limit, 10)]
+        );
+        return rows;
+      }
+    } catch (err) {
+      console.warn(`[WeatherService] Could not load city history from DB: ${err.message}`);
+    }
+    return [];
   }
 }
 

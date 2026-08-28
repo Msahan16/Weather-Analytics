@@ -10,5 +10,17 @@ module.exports = {
   authRequired: process.env.AUTH_REQUIRED === 'true',
   auth0IssuerBaseUrl: process.env.AUTH0_ISSUER_BASE_URL || 'https://dev-weather-analytics.us.auth0.com/',
   auth0Audience: process.env.AUTH0_AUDIENCE || 'https://weather-analytics-api.local',
-  citiesFilePath: path.join(__dirname, 'cities.json')
+  citiesFilePath: path.join(__dirname, 'cities.json'),
+  
+  // Database Configuration (MySQL / XAMPP)
+  db: {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306', 10),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : '',
+    database: process.env.DB_NAME || 'Weather-AnalyticsDB',
+    connectionLimit: 10,
+    waitForConnections: true,
+    queueLimit: 0
+  }
 };

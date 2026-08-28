@@ -7,7 +7,9 @@ import {
   Zap, 
   Clock, 
   Layers, 
-  CheckCircle 
+  CheckCircle,
+  Server,
+  AlertCircle
 } from 'lucide-react';
 import { useWeather } from '../context/WeatherContext';
 
@@ -19,20 +21,25 @@ export default function CacheDebugModal() {
     fetchCacheStats, 
     clearCache,
     cacheStatus,
+    dbStatus,
+    dbHealth,
+    fetchDbStatus,
     responseTimeMs 
   } = useWeather();
 
   useEffect(() => {
     if (cacheModalOpen) {
       fetchCacheStats();
+      fetchDbStatus();
     }
-  }, [cacheModalOpen, fetchCacheStats]);
+  }, [cacheModalOpen, fetchCacheStats, fetchDbStatus]);
 
   if (!cacheModalOpen) return null;
 
   const raw = cacheStats?.rawCache || {};
   const processed = cacheStats?.processedCache || {};
   const overall = cacheStats?.overall || {};
+  const isDbConnected = dbStatus === 'CONNECTED';
 
   return (
     <div className="modal-overlay" onClick={() => setCacheModalOpen(false)}>
@@ -55,15 +62,62 @@ export default function CacheDebugModal() {
             <Database size={22} />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Server-Side Cache Inspector</h2>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Two-Tier In-Memory Caching Architecture & Live Telemetry</div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Server Telemetry & Infrastructure</h2>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>MySQL Database (XAMPP) & Two-Tier Cache Inspector</div>
           </div>
+        </div>
+
+        {/* MySQL Database Status Section */}
+        <div style={{ 
+          background: isDbConnected ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)', 
+          border: `1px solid ${isDbConnected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'}`,
+          borderRadius: 'var(--radius-md)', 
+          padding: '1rem',
+          marginBottom: '1.5rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.95rem' }}>
+              <Server size={18} color={isDbConnected ? 'var(--accent-emerald)' : '#f43f5e'} />
+              <span>MySQL Database: {dbHealth?.database || 'Weather-AnalyticsDB'}</span>
+            </div>
+            <div style={{ 
+              fontSize: '0.75rem', 
+              padding: '0.2rem 0.6rem', 
+              borderRadius: '999px',
+              fontWeight: 700,
+              background: isDbConnected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)',
+              color: isDbConnected ? 'var(--accent-emerald)' : '#fda4af'
+            }}>
+              {isDbConnected ? 'ONLINE • READY' : 'OFFLINE / CONNECTING'}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', fontSize: '0.8rem', marginTop: '0.75rem' }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Host / Port:</span>{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{dbHealth?.host || 'localhost'}:{dbHealth?.port || 3306}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Registered Cities:</span>{' '}
+              <strong style={{ color: 'var(--accent-cyan)' }}>{dbHealth?.totalCities ?? '--'}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Persisted Logs:</span>{' '}
+              <strong style={{ color: 'var(--accent-emerald)' }}>{dbHealth?.totalWeatherRecords ?? '--'}</strong>
+            </div>
+          </div>
+          {dbHealth?.error && (
+            <div style={{ fontSize: '0.75rem', color: '#fda4af', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <AlertCircle size={14} />
+              <span>{dbHealth.error}</span>
+            </div>
+          )}
         </div>
 
         {/* Top KPI Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
           <div style={{ background: 'var(--bg-glass-strong)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-glass)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Last Request</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Last Cache State</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: cacheStatus === 'HIT' ? 'var(--accent-emerald)' : 'var(--accent-amber)', marginTop: '0.2rem' }}>
               {cacheStatus}
             </div>
@@ -149,9 +203,9 @@ export default function CacheDebugModal() {
         {/* Cache Entries List */}
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
-            Active Key Entries & Remaining TTL
+            Active Cache Key Entries & Remaining TTL
           </div>
-          <div style={{ maxHeight: '140px', overflowY: 'auto', background: 'var(--bg-glass)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)', padding: '0.5rem' }}>
+          <div style={{ maxHeight: '120px', overflowY: 'auto', background: 'var(--bg-glass)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)', padding: '0.5rem' }}>
             {raw.entries && raw.entries.length > 0 ? (
               raw.entries.map((entry) => (
                 <div key={entry.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--border-glass)' }}>
@@ -171,10 +225,13 @@ export default function CacheDebugModal() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-glass)', paddingTop: '1.25rem' }}>
           <button 
             className="btn btn-glass"
-            onClick={fetchCacheStats}
+            onClick={() => {
+              fetchCacheStats();
+              fetchDbStatus();
+            }}
           >
             <RefreshCw size={15} />
-            <span>Refresh Stats</span>
+            <span>Refresh Telemetry</span>
           </button>
 
           <button 

@@ -3,17 +3,19 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
 [![Express](https://img.shields.io/badge/Express-4.21-lightgrey.svg)](https://expressjs.com/)
+[![MySQL](https://img.shields.io/badge/MySQL-XAMPP%20Ready-orange.svg)](https://www.apachefriends.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-purple.svg)](https://vitejs.dev/)
 [![Jest Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](https://jestjs.io/)
 [![Auth0](https://img.shields.io/badge/Auth0-Enabled-orange.svg)](https://auth0.com/)
 
-> **Fidenz Full Stack Assignment** — A secure, modern weather analytics platform computing a custom human biometeorological **Comfort Index**, ranking cities worldwide, providing two-tier server-side caching with live telemetry, Auth0 authentication, and a responsive glassmorphic dashboard.
+> **Fidenz Full Stack Assignment** — A secure, modern weather analytics platform computing a custom human biometeorological **Comfort Index**, ranking cities worldwide, providing two-tier server-side caching with live telemetry, MySQL database persistence (`Weather-AnalyticsDB`), Auth0 authentication, and a responsive glassmorphic dashboard.
 
 ---
 
 ## 📑 Table of Contents
 - [Key Features](#-key-features)
 - [Architecture & Tech Stack](#-architecture--tech-stack)
+- [Database Integration (MySQL / XAMPP)](#-database-integration-mysql--xampp)
 - [Comfort Index Formula & Design Reasoning](#-comfort-index-formula--design-reasoning)
 - [Server-Side Caching Architecture](#-server-side-caching-architecture)
 - [Authentication & Access Control (Auth0)](#-authentication--access-control-auth0)
@@ -31,19 +33,25 @@
    - Evaluates **Temperature**, **Relative Humidity**, **Wind Speed**, **Cloudiness**, and **Atmospheric Pressure**.
    - Backend-driven mathematical model ranking cities from **Most Comfortable** to **Least Comfortable**.
 
-2. **Two-Tier Server-Side Caching (5-Minute TTL)**:
+2. **MySQL Database Persistence (`Weather-AnalyticsDB`)**:
+   - Dynamic city list loaded from the MySQL database (`cities` table).
+   - Historical weather snapshots and Comfort Index logs stored into `weather_records` table.
+   - Automatic database table creation and auto-seeding on server start.
+   - Real-time DB connection telemetry and status monitoring (`/api/weather/db/status`).
+
+3. **Two-Tier Server-Side Caching (5-Minute TTL)**:
    - **Tier 1 (Raw Cache)**: Caches individual OpenWeatherMap API responses for 5 minutes (`300s`) to prevent rate limits.
    - **Tier 2 (Processed Cache)**: Caches computed analytics and city rankings.
    - Real-time **Cache Telemetry Inspector** (`/api/weather/cache/stats`) with live HIT/MISS indicators and cache flush.
 
-3. **Ultra-Modern Glassmorphic UI**:
+4. **Ultra-Modern Glassmorphic UI**:
    - Dynamic **Dark / Light mode** toggle with persistent local preferences.
    - **Interactive Radar Chart** breaking down biometeorological factors for each city.
    - **Comparative Climate Analytics Chart** (Comfort Score vs. Temperature vs. Humidity).
    - Instant Search, condition filter chips (Clear, Clouds, Rain, Mist, Thunderstorm), and multi-field sorting.
    - Responsive **Card View** and **Analytical Table View**.
 
-4. **Security & Authentication (Auth0)**:
+5. **Security & Authentication (Auth0)**:
    - JWT validation middleware for Express API routes.
    - Support for Multi-Factor Authentication (MFA via email OTP).
    - Public signup restriction / Whitelist-based access.
@@ -56,32 +64,70 @@
 Weather-Analytics/
 ├── backend/
 │   ├── src/
-│   │   ├── config/              # Configuration & default cities.json (12 cities)
+│   │   ├── config/              # MySQL Pool (db.js), Env settings, and cities.json fallback
 │   │   ├── services/
 │   │   │   ├── comfortIndexService.js  # Biometeorological scoring engine & ranking
 │   │   │   ├── cacheService.js         # Two-tier cache with HIT/MISS tracking
-│   │   │   └── weatherService.js       # OpenWeatherMap API fetcher & fallback
+│   │   │   └── weatherService.js       # MySQL loader, OpenWeatherMap fetcher & fallback
 │   │   ├── controllers/
-│   │   │   └── weatherController.js    # Express route handlers
+│   │   │   └── weatherController.js    # Express route handlers & DB/Cache telemetry
 │   │   ├── middleware/
 │   │   │   ├── authMiddleware.js       # Auth0 JWT check & Dev mode bypass
 │   │   │   └── errorHandler.js         # Global error handler
 │   │   ├── routes/
-│   │   │   └── weatherRoutes.js        # API endpoints
+│   │   │   └── weatherRoutes.js        # API endpoints (/all, /city/:id, /db/status, etc.)
 │   │   ├── __tests__/                  # Jest unit test suites
-│   │   └── server.js                   # Express server entry point
+│   │   └── server.js                   # Express server entry point & DB Auto-Init
+│   ├── schema.sql                      # Standalone MySQL schema and seed data
+│   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/                 # UI components (Navbar, HeroStats, Cards, Modals, Charts)
-│   │   ├── context/                    # ThemeContext & WeatherContext
+│   │   ├── components/                 # UI components (Navbar with DB badge, HeroStats, Cards, Modals, Charts)
+│   │   ├── context/                    # ThemeContext, WeatherContext, AuthContext
 │   │   ├── styles/                     # Glassmorphism design tokens & responsive CSS
 │   │   ├── App.jsx
 │   │   └── main.jsx
+│   └── package.json
 └── README.md
 ```
 
 - **Frontend**: React 18, Vite, Chart.js, Lucide Icons, `@auth0/auth0-react`
-- **Backend**: Node.js, Express 4, `node-cache`, `axios`, `express-oauth2-jwt-bearer`, `jest`, `supertest`
+- **Backend**: Node.js, Express 4, `mysql2`, `node-cache`, `axios`, `express-oauth2-jwt-bearer`, `jest`, `supertest`
+- **Database**: MySQL (XAMPP) — `Weather-AnalyticsDB`
+
+---
+
+## 🗄️ Database Integration (MySQL / XAMPP)
+
+The application automatically connects to MySQL and creates all necessary tables in `Weather-AnalyticsDB`.
+
+### Tables Created:
+1. **`cities`**:
+   - `id` (INT AUTO_INCREMENT PRIMARY KEY)
+   - `city_code` (VARCHAR UNIQUE) — City ID (e.g. `1248991` for Colombo)
+   - `city_name` (VARCHAR)
+   - `country` (VARCHAR)
+   - `temp` (DECIMAL)
+   - `status` (VARCHAR)
+   - `is_active` (TINYINT)
+   - `created_at`, `updated_at` (TIMESTAMP)
+
+2. **`weather_records`**:
+   - `id` (INT AUTO_INCREMENT PRIMARY KEY)
+   - `city_code`, `city_name`, `country`
+   - `temp_c`, `temp_f`, `feels_like_c`, `feels_like_f`, `temp_min_c`, `temp_max_c`
+   - `weather_main`, `weather_description`, `weather_icon`
+   - `humidity`, `pressure`, `wind_speed`, `wind_deg`, `cloudiness`, `visibility`
+   - `comfort_score`, `comfort_category`, `comfort_breakdown` (JSON)
+   - `source`, `recorded_at` (TIMESTAMP)
+
+3. **`cache_telemetry`**:
+   - `id` (INT AUTO_INCREMENT PRIMARY KEY)
+   - `cache_key`, `action` (HIT/MISS), `tier`, `created_at`
+
+### Auto-Migration & Seeding:
+- When starting the backend server, `initDatabase()` ensures the database exists, creates missing tables, and seeds the default 12 cities if `cities` is empty.
+- A standalone [`backend/schema.sql`](file:///j:/Weather-Analytics/backend/schema.sql) is also provided for phpMyAdmin manual import.
 
 ---
 
@@ -128,6 +174,7 @@ To satisfy the 5-minute cache requirement and optimize resource utilization:
    - Eliminates redundant multi-city matrix recalculations for concurrent users.
 3. **Telemetry & Debug Endpoints**:
    - `GET /api/weather/cache/stats`: Returns hits, misses, hit ratio %, and active key TTLs.
+   - `GET /api/weather/db/status`: Returns MySQL database status and table metrics.
    - `POST /api/weather/cache/clear`: Flushes in-memory store for instant cache invalidation testing.
 
 ---
@@ -151,6 +198,7 @@ To satisfy the 5-minute cache requirement and optimize resource utilization:
 ### Prerequisites
 - Node.js `v18+` or `v20+`
 - npm `v9+`
+- XAMPP with MySQL running (Default: `localhost:3306`, user `root`, no password)
 - (Optional) OpenWeatherMap API Key
 
 ### 1. Clone the Repository
@@ -164,8 +212,8 @@ cd Weather-Analytics
 cd backend
 npm install
 
-# (Optional) Add your OpenWeather API Key in backend/.env
-# OPENWEATHER_API_KEY=your_key_here
+# Start MySQL in XAMPP Control Panel
+# (The database 'Weather-AnalyticsDB' and tables are auto-created on startup)
 
 npm run dev
 ```
@@ -190,43 +238,11 @@ cd backend
 npm test
 ```
 **Test Coverage Includes:**
+- MySQL DB fallback resilience & entity normalization
 - Comfort Index range $[0, 100]$ constraints
 - Extreme weather edge cases ($-30^\circ\text{C}$ arctic vs. $+40^\circ\text{C}$ heatwave)
 - Exact sorting and ranking validation
 - Cache lifecycle, HIT/MISS transitions, and flushing
-
----
-
-## ⚖️ Trade-offs & Known Limitations
-
-1. **In-Memory Cache vs. Distributed Redis**:
-   - *Trade-off*: In-memory `node-cache` was chosen for zero-dependency local evaluation and ultra-low microsecond read latency.
-   - *Limitation*: For multi-instance clustered horizontal scaling, a distributed store like Redis would be required.
-2. **City Data Fetching Strategy**:
-   - Current implementation concurrently fetches individual city endpoints with fallback resilience. OpenWeather's bulk group API requires a paid tier; our resilient fallback ensures seamless evaluation even on free-tier keys.
-3. **Biometeorological Model**:
-   - The formula provides a balanced human-comfort approximation. Advanced biometric models (such as Universal Thermal Climate Index - UTCI) require Solar Zenith Angle and Mean Radiant Temperature which are not standard in basic API payloads.
-
----
-
-## 🎥 Screen Recording Guide (Part 3)
-
-For the required **5 to 7 minute unedited video presentation**:
-
-### 1. Design Decision Explanation (2–3 mins)
-- Explain the **5-parameter Comfort Index formula** (why Temperature is weighted at 40% while humidity is 25%).
-- Explain the **Two-Tier Caching layer** and how the 5-minute TTL optimizes API quotas while keeping data fresh.
-
-### 2. Live-Coding Extension Demonstration (3–4 mins)
-To demonstrate adding **Visibility** or adjusting weights live on screen:
-1. Open `backend/src/services/comfortIndexService.js`.
-2. Update the weights object to incorporate visibility:
-   ```javascript
-   // Live modification: Add visibility parameter
-   const visScore = this.calcVisibilityScore(weather.visibility);
-   const weights = { temp: 0.35, humidity: 0.20, wind: 0.15, cloud: 0.10, pressure: 0.10, visibility: 0.10 };
-   ```
-3. Re-run `npm test` or refresh the frontend dashboard to see the city rankings dynamically recalculate!
 
 ---
 
