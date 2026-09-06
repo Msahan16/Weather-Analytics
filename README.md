@@ -8,7 +8,7 @@
 [![Jest Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](https://jestjs.io/)
 [![Auth0](https://img.shields.io/badge/Auth0-Enabled-orange.svg)](https://auth0.com/)
 
-> **Fidenz Full Stack Assignment** — A secure, modern weather analytics platform computing a custom human biometeorological **Comfort Index**, ranking cities worldwide, providing two-tier server-side caching with live telemetry, MySQL database persistence (`Weather-AnalyticsDB`), Auth0 authentication, and a responsive glassmorphic dashboard.
+> A secure, modern weather analytics platform computing a custom human biometeorological **Comfort Index**, ranking cities worldwide, providing two-tier server-side caching with live telemetry, MySQL database persistence (`Weather-AnalyticsDB`), Auth0 authentication, and a responsive glassmorphic dashboard.
 
 ---
 
